@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Dream Instruct DAWN 4-benchmark 5-point sweep
+# Dream Instruct DAWN 3-benchmark 5-point sweep
 # Example:
-#   GPU_ID=1 LIMIT=9999 bash run_dawn_dream_instruct_4bench_5point_sweep.sh
+#   GPU_ID=1 LIMIT=9999 bash run_dawn_dream_instruct_3bench_5point_sweep.sh
 
 GPU_ID="${GPU_ID:-1}"
 LIMIT="${LIMIT:-9999}"
 BASE_PORT="${BASE_PORT:-12550}"
 MODEL_ID="${MODEL_ID:-Dream-org/Dream-v0-Instruct-7B}"
-TASKS="${TASKS:-gsm8k_cot humaneval_instruct mbpp_instruct ifeval}"
+TASKS="${TASKS:-humaneval_instruct mbpp_instruct ifeval}"
 ACCELERATE_BIN="${ACCELERATE_BIN:-}"
 TEMPERATURE="${TEMPERATURE:-0.0}"
 TOP_P="${TOP_P:-0.9}"
@@ -31,7 +31,7 @@ TAU_INDUCE_LEVELS=(0.97 0.90 0.70 0.50 0.45)
 TAU_EDGE_LEVELS=(0.02 0.05 0.12 0.25 0.30)
 TAU_SINK="${TAU_SINK:-0.03}"
 
-OUT_ROOT="${OUT_ROOT:-output_dawn_dream_instruct_4bench_5point_limit${LIMIT}}"
+OUT_ROOT="${OUT_ROOT:-output_dawn_dream_instruct_3bench_5point_limit${LIMIT}}"
 
 if [[ -z "${ACCELERATE_BIN}" ]]; then
   if [[ -x /workspace/venvs/dawnvenv/bin/accelerate ]]; then
