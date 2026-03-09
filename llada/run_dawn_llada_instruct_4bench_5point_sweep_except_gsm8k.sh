@@ -4,12 +4,13 @@ set -euo pipefail
 # LLaDA Instruct DAWN 4-benchmark 5-point sweep
 # Example:
 #   GPU_ID=1 LIMIT=1 bash run_dawn_llada_instruct_4bench_5point_sweep.sh
+# gsm8k_cot excluded
 
 GPU_ID="${GPU_ID:-0}"
 LIMIT="${LIMIT:-9999}"
 BASE_PORT="${BASE_PORT:-12650}"
 MODEL_ID="${MODEL_ID:-GSAI-ML/LLaDA-8B-Instruct}"
-TASKS="${TASKS:-gsm8k_cot humaneval_instruct mbpp_instruct ifeval}"
+TASKS="${TASKS:-humaneval_instruct mbpp_instruct ifeval}"
 ACCELERATE_BIN="${ACCELERATE_BIN:-}"
 
 # Conservative -> Aggressive
@@ -45,7 +46,7 @@ fi
 export HF_ALLOW_CODE_EVAL=1
 export HF_DATASETS_TRUST_REMOTE_CODE=true
 export PYTHONPATH=.
-export LM_EVAL_INCLUDE_PATH="${LM_EVAL_INCLUDE_PATH:-/workspace/DAWN/data/tasks}"
+export LM_EVAL_INCLUDE_PATH="${LM_EVAL_INCLUDE_PATH:-/workspace/dawn_experiment/data/tasks}"
 
 task_gen_length () {
   case "$1" in
@@ -76,13 +77,12 @@ run_one () {
   echo "[LLaDA][${point_label}] task=${task} gen=${gen_length} tau_low=${tau_low} high_conf=${high_conf} limit=${LIMIT} gpu=${GPU_ID}"
   CUDA_VISIBLE_DEVICES="${GPU_ID}" "${ACCELERATE_BIN}" launch --main_process_port "${port}" eval_llada.py \
     --tasks "${task}" \
-    --include_path "${LM_EVAL_INCLUDE_PATH}" \
+    --include_path "/workspace/dawn_experiment/data/tasks" \
     --num_fewshot 0 \
     --confirm_run_unsafe_code \
     --model llada_dist \
     --model_args model_path=${MODEL_ID},gen_length=${gen_length},steps=${gen_length},block_length=${gen_length},temperature=0.1,show_speed=True,dawn=True,tau_sink=0.01,tau_edge=0.07,tau_induce=0.70,tau_low=${tau_low},high_conf_threshold=${high_conf},outp_path=${speed_jsonl} \
     --limit "${LIMIT}" \
-    --include_path /workspace/Dream/eval_instruct/lm_eval/tasks \
     --output_path "${run_dir}" \
     --log_samples
 }
