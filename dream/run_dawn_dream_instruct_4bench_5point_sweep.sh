@@ -66,6 +66,14 @@ task_max_new_tokens () {
   esac
 }
 
+is_done () {
+  local run_dir="$1"
+  local nfe_file="${run_dir}/speed/nfe_stats.jsonl"
+  local result_file
+  result_file="$(find "${run_dir}" -type f -name 'results_*.json' -print -quit 2>/dev/null || true)"
+  [[ -n "${result_file}" && -s "${nfe_file}" ]]
+}
+
 run_one () {
   local task="$1"
   local max_new_tokens="$2"
@@ -79,6 +87,12 @@ run_one () {
   local run_dir="${OUT_ROOT}/${point_label}/${task}/step_${max_new_tokens}"
   local speed_jsonl="${run_dir}/speed/nfe_stats.jsonl"
   local fp_stats_json="${run_dir}/step_stats/fp_stats.json"
+
+  if is_done "${run_dir}"; then
+    echo "[SKIP][Dream][${point_label}] task=${task} step=${max_new_tokens} already completed: ${run_dir}"
+    return 0
+  fi
+
   mkdir -p "${run_dir}" "$(dirname "${speed_jsonl}")" "$(dirname "${fp_stats_json}")"
 
   echo "=================================================="
