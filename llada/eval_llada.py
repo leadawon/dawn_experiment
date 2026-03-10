@@ -38,6 +38,7 @@ from generate import generate, generate_with_prefix_cache, generate_with_dual_ca
 from model.modeling_llada import LLaDAModelLM
 import json
 import time
+from datetime import datetime
 def set_seed(seed):
     torch.manual_seed(seed)
     random.seed(seed)
@@ -73,6 +74,7 @@ class LLaDAEvalHarness(LM):
         klass=False,
         local_leap=False,
         outp_path=None,
+        fp_stats_path=None,
         threshold_klass=0.6,
         kl_threshold=0.015,
         tau_sink=0.01,
@@ -150,6 +152,7 @@ class LLaDAEvalHarness(LM):
         self.dual_cache = dual_cache
         self.dawn = dawn
         self.outp_path = outp_path
+        self.fp_stats_path = fp_stats_path
         self.klass = klass
         self.local_leap = local_leap
         self.threshold_klass = threshold_klass
@@ -168,6 +171,55 @@ class LLaDAEvalHarness(LM):
     @property
     def world_size(self):
         return self._world_size
+
+    def _write_fp_stats(
+        self,
+        total_nfe,
+        total_seconds,
+        num_generated_examples,
+        num_returned_examples,
+        tokens_generated,
+    ):
+        fp_stats_path = self.fp_stats_path
+        if fp_stats_path is None and self.outp_path:
+            out_dir = os.path.dirname(self.outp_path)
+            if out_dir:
+                fp_stats_path = os.path.join(out_dir, "step_stats", "fp_stats.json")
+
+        if fp_stats_path is None:
+            return
+
+        fp_dir = os.path.dirname(fp_stats_path)
+        if fp_dir:
+            os.makedirs(fp_dir, exist_ok=True)
+
+        total_nfe_int = int(total_nfe)
+        total_seconds_float = float(total_seconds)
+        total_examples_int = int(num_generated_examples)
+        returned_examples_int = int(num_returned_examples)
+        tokens_generated_int = int(tokens_generated)
+        avg_forward_passes = (
+            float(total_nfe_int) / float(total_examples_int)
+            if total_examples_int > 0
+            else 0.0
+        )
+        payload = {
+            "timestamp": datetime.now().isoformat(),
+            "total_examples": total_examples_int,
+            "returned_examples": returned_examples_int,
+            "total_forward_passes": total_nfe_int,
+            "avg_forward_passes": avg_forward_passes,
+            "total_time_seconds": total_seconds_float,
+            "tokens_generated": tokens_generated_int,
+            "tokens_per_second": (
+                float(tokens_generated_int) / total_seconds_float
+                if total_seconds_float > 0
+                else 0.0
+            ),
+            "avg_nfe": avg_forward_passes,
+        }
+        with open(fp_stats_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
     def _forward_process(self, batch, prompt_index):
         b, l = batch.shape
@@ -380,12 +432,12 @@ class LLaDAEvalHarness(LM):
                                         temperature=self.temperature, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor, dawn=self.dawn, local_leap=self.local_leap, tau_sink=self.tau_sink, tau_edge=self.tau_edge, tau_induce=self.tau_induce, tau_low=self.tau_low, high_conf_threshold=self.high_conf_threshold, relaxed_threshold=self.relaxed_threshold, radius=self.radius)
 
             # torch.cuda.empty_cache()
+            nfe_value = nfe.item() if torch.is_tensor(nfe) else nfe
+            num_nfe += float(nfe_value)
             
             if self.is_instruct and 'task_id' in req.doc and str(req.doc['task_id']).lower().startswith('humaneval'):
                 generated_answer_ids = generated_answer[:, input_ids.shape[1]:]
-                if self.show_speed:
-                    num_tokens += (generated_answer_ids != 126081).sum()
-                    num_nfe += nfe
+                num_tokens += (generated_answer_ids != 126081).sum()
                 batched_generated_answer = [self.tokenizer.decode(generated_answer_ids[i], skip_special_tokens=True) for i in range(len(generated_answer_ids))]
             else:
                 batched_generated_answer = []
@@ -395,9 +447,7 @@ class LLaDAEvalHarness(LM):
                         if stop_seq in generated_answer_i:
                             generated_answer_i = generated_answer_i.split(stop_seq)[0]
                     generated_answer_ids = torch.tensor(self.tokenizer(generated_answer_i)["input_ids"])
-                    if self.show_speed:
-                        num_tokens += (generated_answer_ids != 126081).sum()
-                        num_nfe += nfe
+                    num_tokens += (generated_answer_ids != 126081).sum()
                     generated_answer_i = self.tokenizer.decode(generated_answer_ids, skip_special_tokens=True)
                     batched_generated_answer.append(generated_answer_i)
 
@@ -414,18 +464,26 @@ class LLaDAEvalHarness(LM):
                 print('=' * 20)
                 # print('question: ', question)
                 print('answer: ', batched_generated_answer[i])
-                print('nfe: ', nfe)
-                print('avg nfe: ', num_nfe / len(output))
+                print('nfe: ', nfe_value)
+                print('avg nfe: ', num_nfe / len(output) if len(output) > 0 else 0.0)
                 print('=' * 20, end='\n\n')
             # self.accelerator.wait_for_everyone()
         end_time = time.time()
+        total_seconds = end_time - start_time
+        token_count = int(num_tokens.item()) if hasattr(num_tokens, "item") else int(num_tokens)
+        num_generated_examples = max(len(output) - processed_count, 0)
+        avg_nfe = (
+            num_nfe / num_generated_examples
+            if num_generated_examples > 0
+            else 0.0
+        )
         if self.show_speed:
-            print(f"Total number of tokens generated: {num_tokens}")
-            print(f"Total time taken: {end_time - start_time} seconds")
-            print(f"Tokens per second: {num_tokens / (end_time - start_time)}")
+            print(f"Total number of tokens generated: {token_count}")
+            print(f"Total time taken: {total_seconds} seconds")
+            print(f"Tokens per second: {token_count / total_seconds if total_seconds > 0 else 0.0}")
             print(f"Total NFE is {num_nfe}")
-            print(f"Tokens per NFE is {num_tokens / num_nfe}")
-            print(f"Average NFE is {num_nfe / len(output)}")
+            print(f"Tokens per NFE is {token_count / num_nfe if num_nfe > 0 else 0.0}")
+            print(f"Average NFE is {avg_nfe}")
 
 
             dirpath = os.path.dirname(self.outp_path)
@@ -435,16 +493,24 @@ class LLaDAEvalHarness(LM):
             with open(self.outp_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(
                     {
-                        'Total Number of Tokens': num_tokens.item(),
-                        'Total Time Taken': end_time - start_time,
-                        'Tokens per Second': num_tokens.item() / (end_time - start_time),
+                        'Total Number of Tokens': token_count,
+                        'Total Time Taken': total_seconds,
+                        'Tokens per Second': token_count / total_seconds if total_seconds > 0 else 0.0,
                         'Total NFE': num_nfe,
-                        'Tokens per NFE': num_tokens.item() / num_nfe,
-                        'Average NFE': num_nfe / len(output),
+                        'Tokens per NFE': token_count / num_nfe if num_nfe > 0 else 0.0,
+                        'Average NFE': avg_nfe,
                     },
                     ensure_ascii=False
                 ) + "\n")
-            
+
+        self._write_fp_stats(
+            total_nfe=num_nfe,
+            total_seconds=total_seconds,
+            num_generated_examples=num_generated_examples,
+            num_returned_examples=len(output),
+            tokens_generated=token_count,
+        )
+
         return output
 
 

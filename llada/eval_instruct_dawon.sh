@@ -7,8 +7,8 @@ model_name='LLaDA-8B-Instruct'
 
 device=0
 
-############################################### gsm8k evaluations ###############################################
-task=gsm8k
+############################################### gsm8k_cot evaluations ###############################################
+task=gsm8k_cot
 length=256
 block_length=256
 num_fewshot=0
@@ -40,7 +40,7 @@ steps=$((length / block_length))
 
 # dawn
 CUDA_VISIBLE_DEVICES=${device} accelerate launch eval_llada.py --tasks ${task} --num_fewshot ${num_fewshot} \
---include_path /workspace/dawn_experiment/data/tasks \
+--include_path "/workspace/dawn_experiment/data/tasks" \
 --confirm_run_unsafe_code --model llada_dist \
 --model_args model_path=${model_path},gen_length=${length},steps=${length},block_length=${block_length},show_speed=True,dawn=True,tau_sink=0.01,tau_edge=0.07,tau_induce=0.7,tau_low=0.75,outp_path=evals_results_${model_name}/dawn/${task}-ns0-${length}/results.jsonl \
 --output_path evals_results_${model_name}/dawn/${task}-ns0-${length}
@@ -115,7 +115,7 @@ steps=$((length / block_length))
 
 # dawn
 CUDA_VISIBLE_DEVICES=${device} accelerate launch eval_llada.py --tasks ${task} --num_fewshot ${num_fewshot} \
---include_path /workspace/dawn_experiment/data/tasks \
+--include_path "/workspace/dawn_experiment/data/tasks" \
 --confirm_run_unsafe_code --model llada_dist \
 --model_args model_path=${model_path},gen_length=${length},steps=${length},block_length=${block_length},show_speed=True,dawn=True,tau_sink=0.01,tau_edge=0.07,tau_induce=0.7,tau_low=0.8,outp_path=evals_results_${model_name}/dawn/${task}-ns0-${length}/results.jsonl \
 --output_path evals_results_${model_name}/dawn/${task}-ns0-${length} --log_samples
@@ -156,7 +156,7 @@ steps=$((length / block_length))
 
 # dawn
 CUDA_VISIBLE_DEVICES=${device} accelerate launch eval_llada.py --tasks ${task} --num_fewshot ${num_fewshot} \
---include_path /workspace/dawn_experiment/data/tasks \
+--include_path "/workspace/dawn_experiment/data/tasks" \
 --confirm_run_unsafe_code --model llada_dist \
 --model_args model_path=${model_path},gen_length=${length},steps=${length},block_length=${block_length},show_speed=True,dawn=True,tau_sink=0.01,tau_edge=0.07,tau_induce=0.7,tau_low=0.7,outp_path=evals_results_${model_name}/dawn/${task}-ns0-${length}/results.jsonl \
 --output_path evals_results_${model_name}/dawn/${task}-ns0-${length} --log_samples
@@ -197,7 +197,7 @@ steps=$((length / block_length))
 
 # dawn
 CUDA_VISIBLE_DEVICES=${device} accelerate launch eval_llada.py --tasks ${task} --num_fewshot ${num_fewshot} \
---include_path /workspace/dawn_experiment/data/tasks \
+--include_path "/workspace/dawn_experiment/data/tasks" \
 --confirm_run_unsafe_code --model llada_dist \
 --model_args model_path=${model_path},gen_length=${length},steps=${length},block_length=${block_length},show_speed=True,dawn=True,tau_sink=0.01,tau_edge=0.07,tau_induce=0.7,tau_low=0.7,outp_path=evals_results_${model_name}/dawn/${task}-ns0-${length}/results.jsonl \
 --output_path evals_results_${model_name}/dawn/${task}-ns0-${length} --log_samples

@@ -8,7 +8,6 @@ export HF_DATASETS_TRUST_REMOTE_CODE=true
 model="Dream-org/Dream-v0-Instruct-7B"
 model_name="Dream-v0-Instruct-7B"
 device=0
-include_path="/workspace/dawn_experiment/data/tasks"
 
 # DAWN confidence thresholds (task-specific)
 gsm8k_conf_threshold=0.80
@@ -31,15 +30,15 @@ run_dawn () {
   CUDA_VISIBLE_DEVICES=${device} accelerate launch eval.py --model dream \
     --model_args pretrained=${model},max_new_tokens=${length},diffusion_steps=${length},block_length=${block_length},add_bos_token=true,alg=dawn,show_speed=True,conf_threshold=${conf_threshold},tau_induce=0.75,tau_sink=0.03,tau_edge=0.10,outp_path=${out_jsonl} \
     --tasks ${task} \
-    --include_path ${include_path} \
+    --include_path "/workspace/dawn_experiment/data/tasks" \
     --num_fewshot ${num_fewshot} \
     --batch_size 1 \
     --confirm_run_unsafe_code \
     --output_path ${out_dir} ${log_flag}
 }
 
-############################################### gsm8k evaluations ###############################################
-run_dawn gsm8k 256 256 0 "${gsm8k_conf_threshold}"
+############################################### gsm8k_cot evaluations ###############################################
+run_dawn gsm8k_cot 256 256 0 "${gsm8k_conf_threshold}"
 
 ############################################### humaneval_instruct evaluations ###############################################
 run_dawn humaneval_instruct 512 512 0 "${humaneval_conf_threshold}" "--log_samples"
